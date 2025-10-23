@@ -17,7 +17,7 @@ cat << "EOF"
   / /_| |_| | (__| | | (_) | | | |
  /_____\__, |\___|_|  \___/|_| |_|
         __/ |                     
-       |___/       
+       |___/                      
 EOF
 echo -e "${reset}${cyan}Welcome to the Zycron Universal Installer${reset}"
 echo ""
