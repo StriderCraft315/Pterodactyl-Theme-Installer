@@ -1,12 +1,28 @@
 #!/bin/bash
 # ==========================================================
-#  ZYCRON INSTALLER ⚡ - Optimized universal setup script
-#  Options: 1) Install Pterodactyl Themes  2) Install Cloudflared
+#  ZYCRON INSTALLER ⚡ - Colorful, animated and clean
+#  Options: 1) Install Pterodactyl Themes  2) Install Cloudflared  3) Exit
 # ==========================================================
 
 # --- Colors ---
-blue='\033[1;34m'; cyan='\033[1;36m'; green='\033[1;32m'; red='\033[1;31m'; reset='\033[0m'
+blue='\033[1;34m'; cyan='\033[1;36m'; green='\033[1;32m'; yellow='\033[1;33m'; red='\033[1;31m'; reset='\033[0m'
 
+# --- Spinner Function ---
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+# --- Clear screen and show banner ---
 clear
 echo -e "${blue}"
 cat << "EOF"
@@ -19,18 +35,20 @@ cat << "EOF"
         __/ |                     
        |___/                      
 EOF
-echo -e "${reset}${cyan}Welcome to the Zycron Universal Installer${reset}"
-echo ""
-echo "1) Install Pterodactyl Themes"
-echo "2) Install Cloudflared"
+echo -e "${reset}${cyan}Welcome to the Zycron Universal Installer${reset}\n"
+
+# --- Menu ---
+echo -e "${yellow}Select an option:${reset}"
+echo -e "${green}1) Install Pterodactyl Themes${reset}"
+echo -e "${cyan}2) Install Cloudflared${reset}"
+echo -e "${red}3) Exit${reset}\n"
+
+read -rp "Enter your choice (1, 2, or 3): " choice
 echo ""
 
-read -rp "Enter your choice (1 or 2): " choice
-echo ""
-
-# --- Helper: Confirm before running ---
+# --- Confirm ---
 confirm() {
-    read -rp "Are you sure? (y/n): " c
+    read -rp "$(echo -e "${yellow}Are you sure? (y/n): ${reset}")" c
     [[ "$c" =~ ^[Yy]$ ]] || { echo -e "${red}❌ Cancelled.${reset}"; exit 0; }
 }
 
@@ -50,11 +68,12 @@ if [[ "$choice" == "1" ]]; then
 
     echo -e "${cyan}↓ Downloading blueprints...${reset}"
     for url in "${urls[@]}"; do
-        curl -s -O "$url" || { echo -e "${red}Failed to download $url${reset}"; exit 1; }
+        curl -s -O "$url" & spinner $!
     done
 
     echo -e "${cyan}Installing themes using Blueprint...${reset}"
-    blueprint -install *.blueprint && echo -e "${green}✅ Pterodactyl Themes installed successfully!${reset}"
+    blueprint -install *.blueprint & spinner $!
+    echo -e "${green}✅ Pterodactyl Themes installed successfully!${reset}"
     exit 0
 fi
 
@@ -67,9 +86,16 @@ if [[ "$choice" == "2" ]]; then
     curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
     echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | \
         sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
-    sudo apt-get update -qq && sudo apt-get install -y cloudflared >/dev/null
+    sudo apt-get update -qq & spinner $!
+    sudo apt-get install -y cloudflared & spinner $!
 
     echo -e "${green}✅ Cloudflared installed successfully!${reset}"
+    exit 0
+fi
+
+# --- Option 3: Exit ---
+if [[ "$choice" == "3" ]]; then
+    echo -e "${cyan}Exiting Zycron Installer. Goodbye! ⚡${reset}"
     exit 0
 fi
 
