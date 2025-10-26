@@ -1,62 +1,31 @@
 #!/usr/bin/env bash
-# ==========================================================
-#  ZYCRON INSTALLER ⚡ - Final build (optimized, colored, animated)
-#  Options:
-#    1) Install Blueprints (auto: all files from assets)
-#    2) Install Cloudflared (official commands, no tunnel)
-#    3) Exit
-# ==========================================================
+set -euo pipefail
 
-set -uo pipefail
-
-# -------- Colors ----------
+# ===== Colors =====
 BLUE='\033[1;34m'; CYAN='\033[1;36m'; GREEN='\033[1;32m'
 YELLOW='\033[1;33m'; RED='\033[1;31m'; RESET='\033[0m'
 
-# -------- Config ----------
-GITHUB_RAW_BASE="https://raw.githubusercontent.com/StriderCraft315/Pterodactyl-Theme-Installer/main/assets"
+# ===== Config =====
+GITHUB_RAW_BASE="https://raw.githubusercontent.com/StriderCraft315/Pterodactyl-Theme-Installer/main/Assets"
 INSTALL_DIR="/var/www/pterodactyl"
-
-# list of blueprint basenames (no .blueprint)
 BLUEPRINTS=( "playerlisting" "nebula" "resourcealerts" "simplefooters" "votifiertester" )
 
-# -------- Spinner ----------
-spinner() {
-  # usage: spinner <pid> "<text ...>"
-  local pid=$1; shift
-  local msg="${*:-working...}"
-  local delay=0.08
-  local spin='|/-\'
-  printf "  %s " "$msg"
-  while kill -0 "$pid" 2>/dev/null; do
-    for c in ${spin}; do
-      printf "\b%c" "$c"
-      sleep $delay
-    done
+# ===== Loading bar animation =====
+progress_bar() {
+  local duration=$1
+  local progress=0
+  local width=30
+  while [ $progress -lt $duration ]; do
+    local filled=$((progress * width / duration))
+    local empty=$((width - filled))
+    printf "\r[${GREEN}%${filled}s${RESET}${BLUE}%${empty}s${RESET}] %d%%" "#" " " $((progress * 100 / duration))
+    sleep 0.05
+    ((progress++))
   done
-  printf "\b \n"
+  printf "\r[${GREEN}%${width}s${RESET}] 100%%\n" "#" 
 }
 
-# -------- Helpers ----------
-require_root_for_cloudflared() {
-  if [ "$EUID" -ne 0 ]; then
-    echo -e "${YELLOW}Cloudflared install needs sudo/root. You will be prompted for sudo during install.${RESET}"
-  fi
-}
-
-confirm_prompt() {
-  local prompt="${1:-Are you sure? (y/n): }"
-  read -rp "$(echo -e "${YELLOW}${prompt}${RESET}")" ans
-  [[ "${ans}" =~ ^[Yy]$ ]] || { echo -e "${RED}Cancelled.${RESET}"; return 1; }
-  return 0
-}
-
-fail_exit() {
-  echo -e "${RED}❌ $1${RESET}" >&2
-  exit "${2:-1}"
-}
-
-# -------- Banner ----------
+# ===== Banner =====
 clear
 echo -e "${BLUE}"
 cat <<'EOF'
@@ -69,108 +38,72 @@ cat <<'EOF'
         __/ |                     
        |___/                      
 EOF
-echo -e "${RESET}${CYAN}Welcome to the Zycron Universal Installer${RESET}\n"
+echo -e "${CYAN}       Zycron Installer ⚡${RESET}\n"
 
-# -------- Menu ----------
-echo -e "${YELLOW}Select an option:${RESET}"
-echo -e "${GREEN}1) Install Pterodactyl Blueprints (all)${RESET}"
-echo -e "${CYAN}2) Install Cloudflared (official)${RESET}"
+# ===== Menu =====
+echo -e "${YELLOW}1) Install Blueprints${RESET}"
+echo -e "${CYAN}2) Install Cloudflared${RESET}"
 echo -e "${RED}3) Exit${RESET}\n"
-
-read -rp "Enter your choice (1, 2, or 3): " CHOICE
+read -rp "Enter choice (1-3): " CHOICE
 echo ""
 
-# -------- Option 1: Install Blueprints ----------
-if [[ "$CHOICE" == "1" ]]; then
-  confirm_prompt "Install all blueprints into ${INSTALL_DIR}? (y/n): " || exit 0
+# ===== Helper =====
+confirm() {
+  read -rp "$(echo -e "${YELLOW}$1 (y/n): ${RESET}")" ans
+  [[ "${ans}" =~ ^[Yy]$ ]]
+}
 
-  # ensure install dir exists
-  if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
-    fail_exit "Unable to create/access ${INSTALL_DIR}. Check permissions."
+# ===== Option 1: Install Blueprints =====
+if [[ "$CHOICE" == "1" ]]; then
+  confirm "Install all blueprints into ${INSTALL_DIR}?" || exit 0
+  mkdir -p "$INSTALL_DIR" || { echo -e "${RED}Failed to access ${INSTALL_DIR}${RESET}"; exit 1; }
+  cd "$INSTALL_DIR" || exit 1
+
+  if ! command -v blueprint >/dev/null; then
+    echo -e "${RED}Blueprint command not found!${RESET}"
+    exit 1
   fi
 
-  cd "$INSTALL_DIR" || fail_exit "Failed to cd into ${INSTALL_DIR}."
-
-  echo -e "${CYAN}Starting downloads of .blueprint files to ${INSTALL_DIR}${RESET}"
-
+  echo -e "${CYAN}Starting installation of Zycron Blueprints...${RESET}\n"
   for name in "${BLUEPRINTS[@]}"; do
     file="${name}.blueprint"
     url="${GITHUB_RAW_BASE}/${file}"
-    echo -e "${YELLOW}→ Downloading ${file} ...${RESET}"
-    # run curl in background so spinner can show
-    ( curl -fsSL -o "${file}" "${url}" ) &
-    pid=$!
-    spinner "$pid" "Downloading ${file}"
-    wait "$pid" || fail_exit "Download failed for ${file}. Check URL or network."
-    echo -e "${GREEN}Downloaded:${RESET} ${file}"
-  done
-
-  echo -e "${CYAN}\nAll files downloaded. Installing with blueprint -i <name> ...${RESET}"
-
-  # Install each blueprint (without extension)
-  for name in "${BLUEPRINTS[@]}"; do
-    echo -e "${YELLOW}→ Installing ${name} ...${RESET}"
-    ( blueprint -i "${name}" ) &
-    pid=$!
-    spinner "$pid" "Installing ${name}"
-    wait "$pid"
-    if [ "$?" -ne 0 ]; then
-      echo -e "${RED}Warning: blueprint -i ${name} returned non-zero exit code.${RESET}"
-      # continue to next rather than aborting entirely
+    echo -e "${YELLOW}→ Downloading ${file}${RESET}"
+    if curl -fsSL -o "${file}" "${url}"; then
+      progress_bar 30
+      echo -e "${CYAN}→ Installing ${name}${RESET}"
+      if blueprint -i "${name}" >/dev/null 2>&1; then
+        progress_bar 25
+        echo -e "${GREEN}✔ Installed ${name}${RESET}\n"
+      else
+        echo -e "${RED}❌ Failed to install ${name}${RESET}\n"
+      fi
     else
-      echo -e "${GREEN}Installed:${RESET} ${name}"
+      echo -e "${RED}❌ Download failed for ${file}${RESET}\n"
     fi
   done
-
-  echo -e "\n${GREEN}✅ All blueprint install attempts finished.${RESET}"
+  echo -e "${GREEN}✅ All installations completed!${RESET}"
   exit 0
 fi
 
-# -------- Option 2: Install Cloudflared ----------
+# ===== Option 2: Cloudflared =====
 if [[ "$CHOICE" == "2" ]]; then
-  confirm_prompt "Proceed to install Cloudflared (official method)? (y/n): " || exit 0
-
-  require_root_for_cloudflared
-
-  echo -e "${CYAN}Installing Cloudflared from official Cloudflare repository...${RESET}"
-
-  # run the exact official commands you provided
-  # create keyrings dir
-  sudo mkdir -p --mode=0755 /usr/share/keyrings || fail_exit "Failed to create keyrings dir."
-
-  # fetch GPG key into keyring
-  sudo curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg \
-    || fail_exit "Failed to fetch Cloudflare GPG key."
-
-  # add apt source
+  confirm "Install Cloudflared (official method)?" || exit 0
+  echo -e "${CYAN}Installing Cloudflared...${RESET}"
+  sudo mkdir -p --mode=0755 /usr/share/keyrings
+  curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
   echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | \
-    sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null \
-    || fail_exit "Failed to write cloudflared apt source."
-
-  # update & install
-  ( sudo apt-get update -qq ) &
-  pid=$!; spinner "$pid" "Updating apt"
-  wait "$pid" || fail_exit "apt update failed."
-
-  ( sudo apt-get install -y cloudflared ) &
-  pid=$!; spinner "$pid" "Installing cloudflared"
-  wait "$pid" || fail_exit "cloudflared install failed."
-
-  if command -v cloudflared >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Cloudflared installed successfully!${RESET}"
-    echo -e "${YELLOW}Version:${RESET} $(cloudflared --version 2>/dev/null || echo 'unknown')"
-    exit 0
-  else
-    fail_exit "cloudflared binary not found after install."
-  fi
-fi
-
-# -------- Option 3: Exit ----------
-if [[ "$CHOICE" == "3" ]]; then
-  echo -e "${CYAN}Exiting Zycron Installer. Goodbye! ⚡${RESET}"
+    sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
+  sudo apt-get update -qq
+  sudo apt-get install -y cloudflared >/dev/null 2>&1 && echo -e "${GREEN}✅ Cloudflared installed successfully!${RESET}" || echo -e "${RED}❌ Installation failed.${RESET}"
   exit 0
 fi
 
-# -------- Invalid Input ----------
+# ===== Option 3: Exit =====
+if [[ "$CHOICE" == "3" ]]; then
+  echo -e "${CYAN}Goodbye from Zycron Installer ⚡${RESET}"
+  exit 0
+fi
+
 echo -e "${RED}Invalid choice. Exiting.${RESET}"
 exit 1
