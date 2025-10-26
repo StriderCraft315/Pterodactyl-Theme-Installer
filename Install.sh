@@ -1,31 +1,65 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ==========================================================
-#  ZYCRON INSTALLER ⚡ - Colorful, animated and clean
-#  Options: 1) Install Pterodactyl Themes  2) Install Cloudflared  3) Exit
+#  ZYCRON INSTALLER ⚡ - Final build (optimized, colored, animated)
+#  Options:
+#    1) Install Blueprints (auto: all files from assets)
+#    2) Install Cloudflared (official commands, no tunnel)
+#    3) Exit
 # ==========================================================
 
-# --- Colors ---
-blue='\033[1;34m'; cyan='\033[1;36m'; green='\033[1;32m'; yellow='\033[1;33m'; red='\033[1;31m'; reset='\033[0m'
+set -uo pipefail
 
-# --- Spinner Function ---
+# -------- Colors ----------
+BLUE='\033[1;34m'; CYAN='\033[1;36m'; GREEN='\033[1;32m'
+YELLOW='\033[1;33m'; RED='\033[1;31m'; RESET='\033[0m'
+
+# -------- Config ----------
+GITHUB_RAW_BASE="https://raw.githubusercontent.com/StriderCraft315/Pterodactyl-Theme-Installer/main/assets"
+INSTALL_DIR="/var/www/pterodactyl"
+
+# list of blueprint basenames (no .blueprint)
+BLUEPRINTS=( "playerlisting" "nebula" "resourcealerts" "simplefooters" "votifiertester" )
+
+# -------- Spinner ----------
 spinner() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='|/-\'
-    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-        local temp=${spinstr#?}
-        printf " [%c]  " "$spinstr"
-        spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b\b\b"
+  # usage: spinner <pid> "<text ...>"
+  local pid=$1; shift
+  local msg="${*:-working...}"
+  local delay=0.08
+  local spin='|/-\'
+  printf "  %s " "$msg"
+  while kill -0 "$pid" 2>/dev/null; do
+    for c in ${spin}; do
+      printf "\b%c" "$c"
+      sleep $delay
     done
-    printf "    \b\b\b\b"
+  done
+  printf "\b \n"
 }
 
-# --- Clear screen and show banner ---
+# -------- Helpers ----------
+require_root_for_cloudflared() {
+  if [ "$EUID" -ne 0 ]; then
+    echo -e "${YELLOW}Cloudflared install needs sudo/root. You will be prompted for sudo during install.${RESET}"
+  fi
+}
+
+confirm_prompt() {
+  local prompt="${1:-Are you sure? (y/n): }"
+  read -rp "$(echo -e "${YELLOW}${prompt}${RESET}")" ans
+  [[ "${ans}" =~ ^[Yy]$ ]] || { echo -e "${RED}Cancelled.${RESET}"; return 1; }
+  return 0
+}
+
+fail_exit() {
+  echo -e "${RED}❌ $1${RESET}" >&2
+  exit "${2:-1}"
+}
+
+# -------- Banner ----------
 clear
-echo -e "${blue}"
-cat << "EOF"
+echo -e "${BLUE}"
+cat <<'EOF'
  ______                          
  |___  /                          
     / /_   _  ___ _ __ ___  _ __  
@@ -35,70 +69,108 @@ cat << "EOF"
         __/ |                     
        |___/                      
 EOF
-echo -e "${reset}${cyan}Welcome to the Zycron Universal Installer${reset}\n"
+echo -e "${RESET}${CYAN}Welcome to the Zycron Universal Installer${RESET}\n"
 
-# --- Menu ---
-echo -e "${yellow}Select an option:${reset}"
-echo -e "${green}1) Install Pterodactyl Themes${reset}"
-echo -e "${cyan}2) Install Cloudflared${reset}"
-echo -e "${red}3) Exit${reset}\n"
+# -------- Menu ----------
+echo -e "${YELLOW}Select an option:${RESET}"
+echo -e "${GREEN}1) Install Pterodactyl Blueprints (all)${RESET}"
+echo -e "${CYAN}2) Install Cloudflared (official)${RESET}"
+echo -e "${RED}3) Exit${RESET}\n"
 
-read -rp "Enter your choice (1, 2, or 3): " choice
+read -rp "Enter your choice (1, 2, or 3): " CHOICE
 echo ""
 
-# --- Confirm ---
-confirm() {
-    read -rp "$(echo -e "${yellow}Are you sure? (y/n): ${reset}")" c
-    [[ "$c" =~ ^[Yy]$ ]] || { echo -e "${red}❌ Cancelled.${reset}"; exit 0; }
-}
+# -------- Option 1: Install Blueprints ----------
+if [[ "$CHOICE" == "1" ]]; then
+  confirm_prompt "Install all blueprints into ${INSTALL_DIR}? (y/n): " || exit 0
 
-# --- Option 1: Install Pterodactyl Themes ---
-if [[ "$choice" == "1" ]]; then
-    confirm
-    echo -e "${green}Installing Pterodactyl Themes...${reset}"
+  # ensure install dir exists
+  if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+    fail_exit "Unable to create/access ${INSTALL_DIR}. Check permissions."
+  fi
 
-    cd /var/www/pterodactyl 2>/dev/null || { echo -e "${red}❌ Directory not found: /var/www/pterodactyl${reset}"; exit 1; }
+  cd "$INSTALL_DIR" || fail_exit "Failed to cd into ${INSTALL_DIR}."
 
-    urls=(
-        "https://cdn.discordapp.com/attachments/1426458069176680498/1430381228351029441/resourcealerts.blueprint?ex=68f991d4&is=68f84054&hm=cfc15b0a16b83d2512bb8a9479df01d432b6e78792d03269420ae7dc30ee2221&"
-        "https://cdn.discordapp.com/attachments/1426458069176680498/1430381228758138910/simplefooters.blueprint?ex=68f991d4&is=68f84054&hm=83d8ffe4d5e9bb3743000c3420be5b7f154910f692b377a5a0b9523d7e4f2def&"
-        "https://cdn.discordapp.com/attachments/1426458069176680498/1430381229059997836/nebula.blueprint?ex=68f991d4&is=68f84054&hm=681a16b28bf64c823b4d070850cfaed42e3c61d645d0e5fdf624cde6acceb4ba&"
-        "https://cdn.discordapp.com/attachments/1426458069176680498/1430381229425033216/huxregister.blueprint?ex=68f991d4&is=68f84054&hm=86130fbbd764d1ef42797be92f923083d012a04611c75df59a2ca1a471acc74c&"
-    )
+  echo -e "${CYAN}Starting downloads of .blueprint files to ${INSTALL_DIR}${RESET}"
 
-    echo -e "${cyan}↓ Downloading blueprints...${reset}"
-    for url in "${urls[@]}"; do
-        curl -s -O "$url" & spinner $!
-    done
+  for name in "${BLUEPRINTS[@]}"; do
+    file="${name}.blueprint"
+    url="${GITHUB_RAW_BASE}/${file}"
+    echo -e "${YELLOW}→ Downloading ${file} ...${RESET}"
+    # run curl in background so spinner can show
+    ( curl -fsSL -o "${file}" "${url}" ) &
+    pid=$!
+    spinner "$pid" "Downloading ${file}"
+    wait "$pid" || fail_exit "Download failed for ${file}. Check URL or network."
+    echo -e "${GREEN}Downloaded:${RESET} ${file}"
+  done
 
-    echo -e "${cyan}Installing themes using Blueprint...${reset}"
-    blueprint -install *.blueprint & spinner $!
-    echo -e "${green}✅ Pterodactyl Themes installed successfully!${reset}"
-    exit 0
+  echo -e "${CYAN}\nAll files downloaded. Installing with blueprint -i <name> ...${RESET}"
+
+  # Install each blueprint (without extension)
+  for name in "${BLUEPRINTS[@]}"; do
+    echo -e "${YELLOW}→ Installing ${name} ...${RESET}"
+    ( blueprint -i "${name}" ) &
+    pid=$!
+    spinner "$pid" "Installing ${name}"
+    wait "$pid"
+    if [ "$?" -ne 0 ]; then
+      echo -e "${RED}Warning: blueprint -i ${name} returned non-zero exit code.${RESET}"
+      # continue to next rather than aborting entirely
+    else
+      echo -e "${GREEN}Installed:${RESET} ${name}"
+    fi
+  done
+
+  echo -e "\n${GREEN}✅ All blueprint install attempts finished.${RESET}"
+  exit 0
 fi
 
-# --- Option 2: Install Cloudflared ---
-if [[ "$choice" == "2" ]]; then
-    confirm
-    echo -e "${green}Installing Cloudflared...${reset}"
+# -------- Option 2: Install Cloudflared ----------
+if [[ "$CHOICE" == "2" ]]; then
+  confirm_prompt "Proceed to install Cloudflared (official method)? (y/n): " || exit 0
 
-    sudo mkdir -p --mode=0755 /usr/share/keyrings
-    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-    echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | \
-        sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
-    sudo apt-get update -qq & spinner $!
-    sudo apt-get install -y cloudflared & spinner $!
+  require_root_for_cloudflared
 
-    echo -e "${green}✅ Cloudflared installed successfully!${reset}"
+  echo -e "${CYAN}Installing Cloudflared from official Cloudflare repository...${RESET}"
+
+  # run the exact official commands you provided
+  # create keyrings dir
+  sudo mkdir -p --mode=0755 /usr/share/keyrings || fail_exit "Failed to create keyrings dir."
+
+  # fetch GPG key into keyring
+  sudo curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg \
+    || fail_exit "Failed to fetch Cloudflare GPG key."
+
+  # add apt source
+  echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | \
+    sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null \
+    || fail_exit "Failed to write cloudflared apt source."
+
+  # update & install
+  ( sudo apt-get update -qq ) &
+  pid=$!; spinner "$pid" "Updating apt"
+  wait "$pid" || fail_exit "apt update failed."
+
+  ( sudo apt-get install -y cloudflared ) &
+  pid=$!; spinner "$pid" "Installing cloudflared"
+  wait "$pid" || fail_exit "cloudflared install failed."
+
+  if command -v cloudflared >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ Cloudflared installed successfully!${RESET}"
+    echo -e "${YELLOW}Version:${RESET} $(cloudflared --version 2>/dev/null || echo 'unknown')"
     exit 0
+  else
+    fail_exit "cloudflared binary not found after install."
+  fi
 fi
 
-# --- Option 3: Exit ---
-if [[ "$choice" == "3" ]]; then
-    echo -e "${cyan}Exiting Zycron Installer. Goodbye! ⚡${reset}"
-    exit 0
+# -------- Option 3: Exit ----------
+if [[ "$CHOICE" == "3" ]]; then
+  echo -e "${CYAN}Exiting Zycron Installer. Goodbye! ⚡${RESET}"
+  exit 0
 fi
 
-# --- Invalid Input ---
-echo -e "${red}Invalid choice. Exiting.${reset}"
+# -------- Invalid Input ----------
+echo -e "${RED}Invalid choice. Exiting.${RESET}"
 exit 1
