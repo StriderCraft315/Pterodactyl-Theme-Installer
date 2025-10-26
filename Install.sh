@@ -8,7 +8,7 @@ YELLOW='\033[1;33m'; RED='\033[1;31m'; RESET='\033[0m'
 # ===== Config =====
 GITHUB_RAW_BASE="https://raw.githubusercontent.com/StriderCraft315/Pterodactyl-Theme-Installer/main/Assets"
 INSTALL_DIR="/var/www/pterodactyl"
-BLUEPRINTS=( "playerlisting" "nebula" "resourcealerts" "simplefooters" "votifiertester" )
+BLUEPRINTS=( "playerlisting" "nebula" "resourcealerts" "simplefooters" "votifiertester" "mcplugins" )
 
 # ===== Loading bar animation =====
 progress_bar() {
@@ -22,7 +22,7 @@ progress_bar() {
     sleep 0.05
     ((progress++))
   done
-  printf "\r[${GREEN}%${width}s${RESET}] 100%%\n" "#" 
+  printf "\r[${GREEN}%${width}s${RESET}] 100%%\n" "#"
 }
 
 # ===== Banner =====
