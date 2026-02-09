@@ -117,7 +117,7 @@ EOF
     echo -e "${RESET}"
     line
     echo -e "${GREEN}⚡ Fast • Stable • Production Ready${RESET}"
-    echo -e "${BLUE}🧠 The Coding Hub — 2026 Installer${RESET}"
+    echo -e "${BLUE}🧠 Zycron Hosting — 2026 Installer${RESET}"
     line
     echo ""
     
