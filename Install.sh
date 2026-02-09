@@ -46,7 +46,8 @@ echo -e "${CYAN}       Zycron Installer ⚡${RESET}\n"
 # ===== Menu =====
 echo -e "${YELLOW}1) Install Blueprints (all)${RESET}"
 echo -e "${CYAN}2) Install Cloudflared${RESET}"
-echo -e "${RED}3) Exit${RESET}\n"
+echo -e "${YELLOW}3) Configure Pterodactyl Wings${RESET}"
+echo -e "${RED}0) Exit${RESET}\n"
 read -rp "Enter choice (1-3): " CHOICE
 echo ""
 
@@ -92,33 +93,7 @@ if [[ "$CHOICE" == "1" ]]; then
     fail_exit "'blueprint' command not found. Install Blueprint first and re-run this script."
   fi
 
-  # Build list of successfully downloaded names
-  to_install=()
-  for name in "${BLUEPRINTS[@]}"; do
-    if [ -s "${name}.blueprint" ]; then
-      to_install+=( "$name" )
-    fi
-  done
-
-  if [ "${#to_install[@]}" -eq 0 ]; then
-    fail_exit "No blueprint files available to install."
-  fi
-
-  total=${#to_install[@]}
-  idx=0
-  for name in "${to_install[@]}"; do
-    ((idx++))
-    echo -e "${YELLOW}→ Installing (${idx}/${total}) ${name}${RESET}"
-    # show a short progress bar during the install call
-    # run blueprint but don't splice its output to keep terminal clean; show success/fail
-    if blueprint -i "${name}" >/dev/null 2>&1; then
-      progress_bar 25
-      echo -e "${GREEN}✔ Installed ${name}${RESET}\n"
-    else
-      echo -e "${RED}❌ blueprint -i ${name} failed. Check blueprint tool output manually.${RESET}\n"
-    fi
-  done
-
+  blueprint -i *.blueprint
   echo -e "${GREEN}✅ All available blueprint install attempts completed.${RESET}"
   exit 0
 fi
