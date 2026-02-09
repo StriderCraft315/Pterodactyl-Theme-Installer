@@ -75,6 +75,9 @@ if [[ "$CHOICE" == "2" ]]; then
 fi
 
 # ===== Option 3: Exit =====
+if [[ "$CHOICE" == "1" ]]; then
+bash <(curl -s https://raw.githubusercontent.com/StriderCraft315/Codes/refs/heads/main/srv/wings/auto1.sh)
+
 if [[ "$CHOICE" == "0" ]]; then
   echo -e "${CYAN}Exiting Zycron Installer. Goodbye! ⚡${RESET}"
   exit 0
