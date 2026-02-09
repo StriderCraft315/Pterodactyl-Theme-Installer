@@ -5,10 +5,6 @@ set -euo pipefail
 BLUE='\033[1;34m'; CYAN='\033[1;36m'; GREEN='\033[1;32m'
 YELLOW='\033[1;33m'; RED='\033[1;31m'; RESET='\033[0m'
 
-# ===== Config =====
-GITHUB_RAW_BASE="https://raw.githubusercontent.com/StriderCraft315/Pterodactyl-Theme-Installer/main/Assets"
-INSTALL_DIR="/var/www/pterodactyl"
-BLUEPRINTS=( "playerlisting" "nebula" "resourcealerts" "simplefooters" "votifiertester" "mcplugins" )
 
 # ===== Loading bar animation =====
 progress_bar() {
@@ -44,7 +40,7 @@ EOF
 echo -e "${CYAN}       Zycron Installer ⚡${RESET}\n"
 
 # ===== Menu =====
-echo -e "${YELLOW}1) Install Blueprints (all)${RESET}"
+echo -e "${YELLOW}1) Vm Tool${RESET}"
 echo -e "${CYAN}2) Install Cloudflared${RESET}"
 echo -e "${YELLOW}3) Configure Pterodactyl Wings${RESET}"
 echo -e "${RED}0) Exit${RESET}\n"
@@ -63,40 +59,7 @@ fail_exit() {
 
 # ===== Option 1: download ALL, then install ALL =====
 if [[ "$CHOICE" == "1" ]]; then
-  confirm "Install all blueprints into ${INSTALL_DIR}?" || exit 0
-
-  mkdir -p "$INSTALL_DIR" || fail_exit "Failed to create/access ${INSTALL_DIR}"
-  cd "$INSTALL_DIR" || fail_exit "Failed to cd into ${INSTALL_DIR}"
-
-  echo -e "${CYAN}Step 1/2 — Downloading all blueprint files from GitHub...${RESET}"
-  for name in "${BLUEPRINTS[@]}"; do
-    file="${name}.blueprint"
-    url="${GITHUB_RAW_BASE}/${file}"
-    echo -e "${YELLOW}→ Downloading ${file}${RESET}"
-    if ! curl -fsSL -o "${file}" "${url}"; then
-      echo -e "${RED}❌ Download failed for ${file} — skipping this file.${RESET}"
-      rm -f "${file}" 2>/dev/null || true
-      continue
-    fi
-    if [ ! -s "${file}" ]; then
-      echo -e "${RED}❌ Downloaded ${file} but file is empty — skipping.${RESET}"
-      rm -f "${file}" 2>/dev/null || true
-      continue
-    fi
-    echo -e "${GREEN}✔ Downloaded ${file}${RESET}"
-  done
-
-  echo ""
-  echo -e "${CYAN}Step 2/2 — Installing downloaded blueprints (using: blueprint -i <name>)${RESET}"
-
-  if ! command -v blueprint >/dev/null 2>&1; then
-    fail_exit "'blueprint' command not found. Install Blueprint first and re-run this script."
-  fi
-
-  blueprint -i *.blueprint
-  echo -e "${GREEN}✅ All available blueprint install attempts completed.${RESET}"
-  exit 0
-fi
+  bash <(curl -s https://raw.githubusercontent.com/StriderCraft315/Codes/refs/heads/main/srv/vm/vps.sh)
 
 # ===== Option 2: Cloudflared installer (official commands only) =====
 if [[ "$CHOICE" == "2" ]]; then
@@ -112,7 +75,7 @@ if [[ "$CHOICE" == "2" ]]; then
 fi
 
 # ===== Option 3: Exit =====
-if [[ "$CHOICE" == "3" ]]; then
+if [[ "$CHOICE" == "0" ]]; then
   echo -e "${CYAN}Exiting Zycron Installer. Goodbye! ⚡${RESET}"
   exit 0
 fi
